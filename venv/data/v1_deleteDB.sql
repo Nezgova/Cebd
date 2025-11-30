@@ -1,8 +1,13 @@
 --DROP VIEWS
 DROP VIEW IF EXISTS V_participants_epreuves;
-DROP VIEW IF EXISTS V_equipe_pays;
+DROP VIEW IF EXISTS V_nomPaysParEquipe;
 DROP VIEW IF EXISTS V_epreuve_discipline;
- 
+DROP VIEW IF EXISTS V_LesAgesSportifs;
+DROP VIEW IF EXISTS V_LesNbsEquipiers;
+DROP VIEW IF EXISTS V_AgeMoyenParEquipeGagnerOr;
+DROP VIEW IF EXISTS V_ClassementPaysMedaille;
+
+
 --DROP TABLES
 DROP TABLE IF EXISTS Participe;
 DROP TABLE IF EXISTS Medailles;
