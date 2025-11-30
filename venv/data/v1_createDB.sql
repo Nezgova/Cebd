@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS Participe(
     CONSTRAINT pk_id_participant PRIMARY KEY (id_participant, id_epreuve),
     CONSTRAINT fk_id_epreuve FOREIGN KEY (id_epreuve) REFERENCES Epreuves(id_epreuve)
 );
-```SQL
+
 --VIEWS
 --Nombres de participants à une épreuve
 CREATE VIEW IF NOT EXISTS V_participants_epreuves AS
@@ -154,5 +154,3 @@ SELECT
 FROM MedaillesParPays
 GROUP BY nom_pays
 ORDER BY nbOr DESC, nbArgent DESC, nbBronze DESC;
-
-```
