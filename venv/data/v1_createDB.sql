@@ -123,7 +123,9 @@ CREATE VIEW IF NOT EXISTS V_AgeMoyenParEquipeGagnerOr AS
 	SELECT id_equipe, AVG(age_sportif) as MoyenneAge
 	FROM Engager E1 JOIN V_LesAgesSportifs A1 ON (E1.id_sportif = A1.id_sportif)
 	JOIN Medailles M1 ON (E1.id_equipe = M1.id_participant AND M1.type_medaille = 'or')
-	GROUP BY id_equipe;-- Medailles par pays
+	GROUP BY id_equipe;
+    
+-- Medailles par pays
 CREATE VIEW IF NOT EXISTS V_ClassementPaysMedaille AS
 WITH MedaillesParPays AS (
     SELECT
@@ -154,3 +156,88 @@ SELECT
 FROM MedaillesParPays
 GROUP BY nom_pays
 ORDER BY nbOr DESC, nbArgent DESC, nbBronze DESC;
+
+
+-- Triggers :
+-- Minimum 2 sportif par équipe
+CREATE TRIGGER check_min_sportifs_equipe
+BEFORE DELETE ON Engager
+FOR EACH ROW
+WHEN (
+    (SELECT COUNT(id_sportif) FROM Engager WHERE id_equipe = OLD.id_equipe) <= 2
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ERREUR : Une equipe doit conserver au moins 2 sportifs.');
+END;
+--Utiliser cascade
+
+
+--Héritage:
+-- Trigger pour Medailles
+CREATE TRIGGER check_participant_medailles
+BEFORE INSERT ON Medailles
+FOR EACH ROW
+WHEN (
+    (NEW.id_participant >= 1000 AND NEW.id_participant <= 1500 AND (SELECT COUNT(*) FROM Sportifs WHERE id_sportif = NEW.id_participant) = 0)
+    OR (NEW.id_participant >= 1 AND NEW.id_participant <= 100 AND (SELECT COUNT(*) FROM Equipes WHERE id_equipe = NEW.id_participant) = 0)
+    OR (NEW.id_participant < 1 OR NEW.id_participant > 1500 OR (NEW.id_participant > 100 AND NEW.id_participant < 1000))
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ERREUR HERITAGE : doit être un sportif (1000-1500) ou une equipe (1-100) existante.');
+END;
+
+-- Trigger pour Participe
+CREATE TRIGGER check_participant_participe
+BEFORE INSERT ON Participe
+FOR EACH ROW
+WHEN (
+    (NEW.id_participant >= 1000 AND NEW.id_participant <= 1500 AND (SELECT COUNT(*) FROM Sportifs WHERE id_sportif = NEW.id_participant) = 0)
+    OR
+    (NEW.id_participant >= 1 AND NEW.id_participant <= 100 AND (SELECT COUNT(*) FROM Equipes WHERE id_equipe = NEW.id_participant) = 0)
+    OR
+    (NEW.id_participant < 1 OR NEW.id_participant > 1500 OR (NEW.id_participant > 100 AND NEW.id_participant < 1000))
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ERREUR HERITAGE : doit être un sportif (1000-1500) ou une equipe (1-100) existante.');
+END;
+
+--Uniformité des équipes
+CREATE TRIGGER check_pays_uniforme_equipe
+BEFORE INSERT ON Engager
+FOR EACH ROW
+WHEN (
+    EXISTS (SELECT 1 FROM Engager E WHERE E.id_equipe = NEW.id_equipe)
+    AND 
+    (SELECT id_pays FROM Sportifs WHERE id_sportif = NEW.id_sportif) <> (
+        SELECT S2.id_pays
+        FROM Engager E2
+        JOIN Sportifs S2 ON E2.id_sportif = S2.id_sportif
+        WHERE E2.id_equipe = NEW.id_equipe
+        LIMIT 1
+        --On peut se permettre de prendre le premier car par récursivité si le premier est France alors le deuxième aussi et si le deuxième alors ...
+    )
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ERREUR : Les sportifs doivent représenter le même pays au sein d''une même équipe');
+END;
+
+--Cohérence sexe/catégorie
+CREATE TRIGGER check_sexe_categorie_individuelle
+BEFORE INSERT ON Participe
+FOR EACH ROW
+WHEN (
+    NEW.id_participant BETWEEN 1000 AND 1500
+)
+BEGIN
+    SELECT RAISE(ABORT, 'ERREUR : Incohérence entre la categorie de l''épreuve et le sexe du participant')
+    FROM Epreuves E, Sportifs S
+    WHERE E.id_epreuve = NEW.id_epreuve 
+      AND S.id_sportif = NEW.id_participant
+      AND E.forme_epreuve = 'individuelle'
+      AND (
+          (E.categorie_epreuve = 'masculin' AND S.categorie_sportif <> 'homme')
+          OR 
+          (E.categorie_epreuve = 'feminin' AND S.categorie_sportif <> 'femme')
+      );
+END;
+
