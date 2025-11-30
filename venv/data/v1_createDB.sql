@@ -80,3 +80,77 @@ CREATE TABLE IF NOT EXISTS Participe(
     CONSTRAINT pk_id_participant PRIMARY KEY (id_participant, id_epreuve),
     CONSTRAINT fk_id_epreuve FOREIGN KEY (id_epreuve) REFERENCES Epreuves(id_epreuve)
 );
+
+--VIEWS
+--Nombres de participants à une épreuve
+CREATE VIEW IF NOT EXISTS V_participants_epreuves AS
+	SELECT nom_epreuve, COUNT(id_participant)
+	FROM Participe JOIN Epreuves USING(id_epreuve)
+	GROUP BY nom_epreuve;
+
+--Nombre d'épreuve associer à une discipline
+CREATE VIEW IF NOT EXISTS V_epreuve_discipline AS
+	SELECT nom_discipline, COUNT(id_epreuve)
+    FROM Disciplines JOIN Epreuves USING (id_discipline)
+    GROUP BY nom_discipline;
+    
+--Pays par equipe
+CREATE VIEW IF NOT EXISTS V_nomPaysParEquipe AS
+	SELECT id_equipe, nom_pays
+	FROM Engager E1 JOIN Sportifs S1 ON (E1.id_sportif = S1.id_sportif)
+	JOIN Pays P1 ON (P1.id_pays = S1.id_pays)
+	GROUP BY id_equipe;
+
+--VU DEMANDER:
+--Calculs des ages du sportifs
+CREATE VIEW IF NOT EXISTS V_LesAgesSportifs AS
+    SELECT id_sportif, nom_sportif, prenom_sportif, nom_pays, categorie_sportif, date_naissance_sportif, 
+    (STRFTIME('%Y-', 'now') - STRFTIME('%Y-', date_naissance_sportif) - 
+		(
+		STRFTIME('%m-%d', 'now') < 
+		STRFTIME('%m-%d', date_naissance_sportif)
+		)) AS age_sportif
+    FROM Sportifs JOIN Pays USING (id_pays);
+
+--Nombres d'équipiers
+CREATE VIEW IF NOT EXISTS V_LesNbsEquipiers AS
+	SELECT id_equipe, COUNT(id_sportif) AS nbEquipiers
+	FROM Engager
+	GROUP BY id_equipe;
+
+--Age moyen par équipe qui ont gagné l'or
+CREATE VIEW IF NOT EXISTS V_AgeMoyenParEquipeGagnerOr AS
+	SELECT id_equipe, AVG(age_sportif) as MoyenneAge
+	FROM Engager E1 JOIN V_LesAgesSportifs A1 ON (E1.id_sportif = A1.id_sportif)
+	JOIN Medailles M1 ON (E1.id_equipe = M1.id_participant AND M1.type_medaille = 'or')
+	GROUP BY id_equipe;-- Medailles par pays
+CREATE VIEW IF NOT EXISTS V_ClassementPaysMedaille AS
+WITH MedaillesParPays AS (
+    SELECT
+        M.id_epreuve,
+        M.type_medaille,
+        P.nom_pays
+    FROM Medailles M
+    JOIN Sportifs S ON M.id_participant = S.id_sportif 
+    JOIN Pays P ON S.id_pays = P.id_pays
+    WHERE M.id_participant BETWEEN 1000 AND 1500 
+    UNION ALL
+    SELECT
+        M.id_epreuve,
+        M.type_medaille,
+        P.nom_pays
+    FROM Medailles M
+    JOIN Engager EN ON M.id_participant = EN.id_equipe 
+    JOIN Sportifs S ON EN.id_sportif = S.id_sportif
+    JOIN Pays P ON S.id_pays = P.id_pays
+    WHERE M.id_participant BETWEEN 1 AND 100
+    GROUP BY M.id_epreuve, M.type_medaille, P.nom_pays 
+)
+SELECT
+    nom_pays,
+    SUM(CASE WHEN type_medaille = 'or' THEN 1 ELSE 0 END) AS nbOr,
+    SUM(CASE WHEN type_medaille = 'argent' THEN 1 ELSE 0 END) AS nbArgent,
+    SUM(CASE WHEN type_medaille = 'bronze' THEN 1 ELSE 0 END) AS nbBronze
+FROM MedaillesParPays
+GROUP BY nom_pays
+ORDER BY nbOr DESC, nbArgent DESC, nbBronze DESC;
